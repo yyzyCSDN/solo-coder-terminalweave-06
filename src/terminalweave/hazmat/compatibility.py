@@ -25,20 +25,26 @@ class CompatibilityMatrix:
     def __init__(self):
         self._rules: dict[tuple[str, str], float | None] = {}
 
+    @staticmethod
+    def _key(a: str, b: str) -> tuple[str, str]:
+        # class pairs are unordered: a rule registered as (a, b) must
+        # govern (b, a) identically, so keys are stored in canonical order
+        return (a, b) if a <= b else (b, a)
+
     def set_compatible(self, a: str, b: str, minimum_separation_m: float=0.0) -> None:
         if minimum_separation_m < 0:
             raise ValidationError('separation cannot be negative')
-        self._rules[(a, b)] = float(minimum_separation_m)
+        self._rules[self._key(a, b)] = float(minimum_separation_m)
 
     def set_incompatible(self, a: str, b: str) -> None:
-        self._rules[(a, b)] = None
+        self._rules[self._key(a, b)] = None
 
     def requirement(self, a: str, b: str) -> float | None:
         if a == b:
             return 0.0
-        key = (a, b)
+        key = self._key(a, b)
         if key not in self._rules:
-            raise SafetyConstraintError(f'no compatibility rule for {a}/{b}')
+            raise SafetyConstraintError(f'no compatibility rule for {key[0]}/{key[1]}')
         return self._rules[key]
 
 class SegregationChecker:
@@ -51,7 +57,12 @@ class SegregationChecker:
         return ((a.x_m - b.x_m) ** 2 + (a.y_m - b.y_m) ** 2) ** 0.5
 
     def check_pair(self, a: HazmatUnit, b: HazmatUnit) -> tuple[bool, str]:
-        requirement = self.matrix.requirement(a.class_code, b.class_code)
+        # fail closed: a missing rule is a rejection with a recorded reason,
+        # not an exception that would abort the whole layout assessment
+        try:
+            requirement = self.matrix.requirement(a.class_code, b.class_code)
+        except SafetyConstraintError as exc:
+            return (False, str(exc))
         if requirement is None:
             return (False, 'classes are prohibited from co-location')
         actual = self.distance(a, b)
