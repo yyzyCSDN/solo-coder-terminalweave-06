@@ -15,17 +15,18 @@ class DeclarationValidator:
 
     def validate(self, d: HazmatDeclaration) -> list[str]:
         errors = []
-        if not d.container_id.strip():
+        if not d.container_id or not d.container_id.strip():
             errors.append('container id missing')
-        if not (d.un_number.startswith('UN') and d.un_number[2:].isdigit()):
+        un_number = d.un_number.strip() if isinstance(d.un_number, str) else ''
+        if not (un_number.startswith('UN') and un_number[2:].isdigit()):
             errors.append('UN number invalid')
-        if not d.proper_name.strip():
+        if not d.proper_name or not d.proper_name.strip():
             errors.append('proper shipping name missing')
-        if not d.hazard_class.strip():
+        if not d.hazard_class or not d.hazard_class.strip():
             errors.append('hazard class missing')
         if d.packing_group not in {None, 'I', 'II', 'III'}:
             errors.append('packing group invalid')
-        digits = ''.join((ch for ch in d.emergency_contact if ch.isdigit()))
+        digits = ''.join((ch for ch in (d.emergency_contact or '') if ch.isdigit()))
         if len(digits) < 7:
             errors.append('emergency contact invalid')
         if not d.signed:
